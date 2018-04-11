@@ -95,7 +95,7 @@ def inline_query(bot, update, all_list, threshold=20):
             message_text=f'Click [here]({DOCS_URL}) to see the full documentation of _Telethon_',
         ))
 
-    bot.answerInlineQuery(update.inline_query.id, results=results_list, switch_pm_text='Help',
+    bot.answerInlineQuery(update.inline_query.id, results=results_list[:30], switch_pm_text='Help',
                           switch_pm_parameter='inline-help')
 
 
