@@ -207,7 +207,6 @@ def github(bot, update, chat_data):
                       '\n'.join([f'[{name}]({url})' for url, name in things.items()]))
 
 
-@run_async
 def fuzzy_replacements_markdown(query, threshold=95):
     """ Replaces the enclosed characters in the query string with hyperlinks to the documentations """
     symbols = re.findall(ENCLOSED_REGEX, query)
