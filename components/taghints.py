@@ -7,7 +7,7 @@ import util
 
 HINTS = {
     '#inline': {
-        'message': "Consider using me in inline-mode 😎\n`@roolsbot {query}`",
+        'message': f"Consider using me in inline-mode 😎\n`@{const.SELF_BOT_NAME} {{query}}`",
         'default': "Your search terms",
         'buttons': [{
             'text': '🔎 Try it out',
@@ -24,56 +24,6 @@ HINTS = {
             'url': "https://t.me/{}".format(const.SELF_BOT_NAME)
         }],
         'help': 'Tell a member to stop spamming and switch to a private chat',
-    },
-    '#issue': {
-        'message': "Hi,\n\nThis is not an issue with the library's code, but a usage question. "
-                   "Feel free to ask it in our [telegram group](https://t.me/pythontelegrambotgroup). "
-                   "Or (if you can't reach our group) our [IRC channel](https://webchat.freenode.net/?channels=##python-telegram-bot).\n{query}",
-        'default': '',
-        'help': 'Send issue template',
-    },
-    '#userbot': {
-        'message': "Refer to [this article](http://telegra.ph/How-a-"
-                   "Userbot-superacharges-your-Telegram-Bot-07-09) to learn more about *Userbots*.",
-        'help': "@JosXa's article about Userbots"
-    },
-    '#snippets': {
-        'message': "[Here](https://github.com/python-telegram-bot/python-telegram-bot/wiki/Code-snippets) "
-                   "you can find many useful code snippets for the work with python-telegram-bot",
-        'help': "Link to the wiki's *snippets* section",
-    },
-    '#pprint': {
-        'message': """
-            The most convenient way of *pretty-printing an update* is:
-            
-    `from pprint import pprint`
-    `pprint(update.to_dict())`
-
-It shows you what attributes are available in an update. Alternatively, use a json dumping bot like @JsonDumpBot or @JsonDumpBetaBot for a general overview, but keep in mind that this method won't be entirely consistent with your bot's updates (different file\_ids for example).""",
-        'help': "Explain how to pretty-print an update"
-    },
-    '#meta': {
-        'message': """No need for meta questions. Just ask! 🤗
-_"Has anyone done .. before?"_
-Probably. *Just ask your question and somebody will help!* 
-        """,
-        'help': "Show our stance on meta-questions"
-    },
-    '#tutorial': {
-        'message': """Oh, hey! There's a new guy joining our awesome community of Python developers ❤️ We have compiled a list of learning resources _just for you_:
-[As Beginner](https://wiki.python.org/moin/BeginnersGuide/NonProgrammers)
-[As Programmer](https://wiki.python.org/moin/BeginnersGuide/Programmers)
-[Official Tutorial](https://docs.python.org/3/tutorial/)
-        """,
-        'help': "How to find a Python tutorial"
-    },
-    '#wronglib':{
-        'message':"""Hey, I think you're wrong 🧐
-It looks like you're not using the python-telegram-bot library. If you insist on using that other one, please go where you belong:
-[pyTelegramBotApi](https://telegram.me/joinchat/Bn4ixj84FIZVkwhk2jag6A)
-[Telepot](https://github.com/nickoala/telepot)
-        """,
-        'help': "Other Python wrappers for Telegram"
     }
 }
 

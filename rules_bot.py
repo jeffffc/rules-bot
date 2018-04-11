@@ -3,83 +3,55 @@ import logging
 import os
 import re
 import time
+import json
 from functools import lru_cache
 
 from telegram import Bot, ParseMode, MessageEntity, ChatAction
 from telegram.error import BadRequest
-from telegram.ext import CommandHandler, RegexHandler, Updater, MessageHandler, Filters
+from telegram.ext import CommandHandler, RegexHandler, Updater, MessageHandler, Filters, run_async
 from telegram.utils.helpers import escape_markdown
 
 import const
 from components import inlinequeries, taghints
 from const import ENCLOSED_REGEX, ENCLOSING_REPLACEMENT_CHARACTER, GITHUB_PATTERN, OFFTOPIC_CHAT_ID, OFFTOPIC_RULES, \
-    OFFTOPIC_USERNAME, ONTOPIC_RULES, ONTOPIC_USERNAME, TELEGRAM_SUPERSCRIPT
+    OFFTOPIC_USERNAME, ONTOPIC_RULES, ONTOPIC_USERNAME
 from search import search
 from util import ARROW_CHARACTER, DEFAULT_REPO, GITHUB_URL, get_reply_id, reply_or_edit, get_web_page_title, \
     get_text_not_in_entities
 
-if os.environ.get('ROOLSBOT_DEBUG'):
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                        level=logging.DEBUG)
-else:
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                        level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
 self_chat_id = '@'  # Updated in main()
 
 
+@run_async
 def start(bot, update, args=None):
     if args:
         if args[0] == 'inline-help':
             inlinequery_help(bot, update)
     elif update.message.chat.username not in (OFFTOPIC_USERNAME, ONTOPIC_USERNAME):
         update.message.reply_text("Hi. I'm a bot that will announce the rules of the "
-                                  "python-telegram-bot groups when you type /rules.")
+                                  "Telethon groups when you type /rules.")
 
 
+@run_async
 def inlinequery_help(bot, update):
     chat_id = update.message.chat_id
     char = ENCLOSING_REPLACEMENT_CHARACTER
     text = (f"Use the `{char}`-character in your inline queries and I will replace "
-            f"them with a link to the corresponding article from the documentation or wiki.\n\n"
+            f"them with a link to the corresponding article from the documentation.\n\n"
             f"*Example:*\n"
-            f"{SELF_CHAT_ID} I 💙 {char}InlineQueries{char}, but you need an {char}InlineQueryHandler{char} for it.\n\n"
+            f"{SELF_CHAT_ID} I 💙 {char}TelegramClient{char} and you can receive {char}NewMessage{char} with it.\n\n"
             f"*becomes:*\n"
-            f"I 💙 [InlineQueries](https://python-telegram-bot.readthedocs.io/en/latest/telegram.html#telegram"
-            f".InlineQuery), but you need an [InlineQueryHandler](https://python-telegram-bot.readthedocs.io/en"
-            f"/latest/telegram.ext.html#telegram.ext.InlineQueryHandler) for it.\n\n"
-            f"Some wiki pages have spaces in them. Please replace such spaces with underscores. "
-            f"The bot will automatically change them back desired space.")
+            f"I 💙 [telegram_client.TelegramClient](https://telethon.readthedocs.io/en/latest/telethon.html#"
+            f"telethon.telegram_client.TelegramClient), and you can receive [events.NewMessage]("
+            f"https://telethon.readthedocs.io/en/latest/telethon.events.html#telethon.events.NewMessage) with it.")
     bot.sendMessage(chat_id, text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 
 
-def forward_faq(bot: Bot, update):
-    if update.message.chat.username not in [ONTOPIC_USERNAME, OFFTOPIC_USERNAME]:
-        return
-
-    admins = bot.get_chat_administrators(ONTOPIC_USERNAME)
-
-    if update.effective_user.id not in [x.user.id for x in admins]:
-        return
-
-    if not update.message:
-        return
-
-    reply_to = update.message.reply_to_message
-    if not reply_to:
-        return
-
-    try:
-        update.message.delete()
-    except BadRequest:
-        pass
-
-    # Forward message to FAQ channel
-    reply_to.forward(const.FAQ_CHANNEL_ID, disable_notification=True)
-
-
+@run_async
 def rules(bot, update):
     """Load and send the appropiate rules based on which group we're in"""
     if update.message.chat.username == ONTOPIC_USERNAME:
@@ -89,25 +61,14 @@ def rules(bot, update):
         update.message.reply_text(OFFTOPIC_RULES, parse_mode=ParseMode.HTML,
                                   disable_web_page_preview=True)
     else:
-        update.message.reply_text("Hmm. You're not in a python-telegram-bot group, "
+        update.message.reply_text("Hmm. You're not in a Telethon group, "
                                   "and I don't know the rules around here.")
 
 
+@run_async
 def docs(bot, update):
     """ Documentation link """
-    text = "You can find our documentation at [Read the Docs](https://python-telegram-bot.readthedocs.io/en/stable/)"
-    if update.message.reply_to_message:
-        reply_id = update.message.reply_to_message.message_id
-    else:
-        reply_id = None
-    update.message.reply_text(text, parse_mode='Markdown', quote=False,
-                              disable_web_page_preview=True, reply_to_message_id=reply_id)
-    update.message.delete()
-
-
-def wiki(bot, update):
-    """ Wiki link """
-    text = "You can find our wiki on [GitHub](https://github.com/python-telegram-bot/python-telegram-bot/wiki)"
+    text = "You can find our documentation at [Read the Docs](https://telethon.readthedocs.io/en/stable/)"
     if update.message.reply_to_message:
         reply_id = update.message.reply_to_message.message_id
     else:
@@ -134,7 +95,7 @@ def off_on_topic(bot, update, groups):
             replied_message_text = reply.text
             replied_message_id = reply.message_id
 
-            text = (f'{name} [wrote](t.me/pythontelegrambotgroup/{replied_message_id}):\n'
+            text = (f'{name} [wrote](t.me/{ONTOPIC_USERNAME}/{replied_message_id}):\n'
                     f'{replied_message_text}\n\n'
                     f'⬇️ ᴘʟᴇᴀsᴇ ᴄᴏɴᴛɪɴᴜᴇ ʜᴇʀᴇ ⬇️')
 
@@ -142,7 +103,7 @@ def off_on_topic(bot, update, groups):
                                             parse_mode=ParseMode.MARKDOWN)
 
             update.message.reply_text(
-                moved_notification.format('https://telegram.me/pythontelegrambottalk/' +
+                moved_notification.format(f'https://telegram.me/{OFFTOPIC_USERNAME}/' +
                                           str(offtopic_msg.message_id)),
                 disable_web_page_preview=True,
                 parse_mode=ParseMode.MARKDOWN,
@@ -151,17 +112,18 @@ def off_on_topic(bot, update, groups):
 
         else:
             update.message.reply_text(
-                'The off-topic group is [here](https://telegram.me/pythontelegrambottalk). '
+                f'The off-topic group is [here](https://telegram.me/{OFFTOPIC_USERNAME}). '
                 'Come join us!',
                 disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
 
     elif chat_username == OFFTOPIC_USERNAME and groups[0].lower() == 'on':
         update.message.reply_text(
-            'The on-topic group is [here](https://telegram.me/pythontelegrambotgroup). '
+            f'The on-topic group is [here](https://telegram.me/{ONTOPIC_USERNAME}). '
             'Come join us!',
             disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
 
 
+@run_async
 def sandwich(bot, update, groups):
     if update.message.chat.username == OFFTOPIC_USERNAME:
         if 'sudo' in groups[0]:
@@ -170,6 +132,7 @@ def sandwich(bot, update, groups):
             update.message.reply_text("What? Make it yourself.", quote=True)
 
 
+@run_async
 def keep_typing(last, chat, action):
     now = time.time()
     if (now - last) > 1:
@@ -177,6 +140,7 @@ def keep_typing(last, chat, action):
     return now
 
 
+@run_async
 @lru_cache()
 def _get_github_title_and_type(url, sha=None):
     title = get_web_page_title(url)
@@ -189,6 +153,7 @@ def _get_github_title_and_type(url, sha=None):
     return split[0], t
 
 
+@run_async
 def github(bot, update, chat_data):
     message = update.message or update.edited_message
     last = 0
@@ -242,7 +207,8 @@ def github(bot, update, chat_data):
                       '\n'.join([f'[{name}]({url})' for url, name in things.items()]))
 
 
-def fuzzy_replacements_markdown(query, threshold=95, official_api_links=True):
+@run_async
+def fuzzy_replacements_markdown(query, threshold=95):
     """ Replaces the enclosed characters in the query string with hyperlinks to the documentations """
     symbols = re.findall(ENCLOSED_REGEX, query)
 
@@ -251,22 +217,11 @@ def fuzzy_replacements_markdown(query, threshold=95, official_api_links=True):
 
     replacements = list()
     for s in symbols:
-        # Wiki first, cause with docs you can always prepend telegram. for better precision
-        wiki = search.wiki(s.replace('_', ' '), amount=1, threshold=threshold)
-        if wiki:
-            name = wiki[0][0].split(ARROW_CHARACTER)[-1].strip()
-            text = f'[{name}]({wiki[0][1]})'
-            replacements.append((wiki[0][0], s, text))
-            continue
+        docs_res = search.docs(s, threshold=threshold)
+        if docs_res:
+            text = f'[{docs_res[0].short_name}]({docs_res[0].url})'
 
-        doc = search.docs(s, threshold=threshold)
-        if doc:
-            text = f'[{doc.short_name}]({doc.url})'
-
-            if doc.tg_url and official_api_links:
-                text += f' [{TELEGRAM_SUPERSCRIPT}]({doc.tg_url})'
-
-            replacements.append((doc.short_name, s, text))
+            replacements.append((docs_res[0].short_name, s, text))
             continue
 
         # not found
@@ -296,11 +251,29 @@ def main():
     global SELF_CHAT_ID
     SELF_CHAT_ID = f'@{updater.bot.get_me().username}'
 
+    # dump requests list
+    with open('resources/search.json', 'r') as file:
+        main_list = json.load(file)
+        requests_list = [each['value'] for each in
+                         main_list['body'][13]['block']['body'][0]['expression']['right']['elements']]
+        types_list = [each['value'] for each in
+                      main_list['body'][13]['block']['body'][1]['expression']['right']['elements']]
+        constructors_list = [each['value'] for each in
+                             main_list['body'][13]['block']['body'][2]['expression']['right']['elements']]
+        requests_u_list = [each['value'] for each in
+                           main_list['body'][13]['block']['body'][3]['expression']['right']['elements']]
+        types_u_list = [each['value'] for each in
+                        main_list['body'][13]['block']['body'][4]['expression']['right']['elements']]
+        constructors_u_list = [each['value'] for each in
+                               main_list['body'][13]['block']['body'][5]['expression']['right']['elements']]
+        all_list = {"Method": (requests_list, requests_u_list),
+                    "Type": (types_list, types_u_list),
+                    "Constructor": (constructors_list, constructors_u_list)}
+
     start_handler = CommandHandler('start', start, pass_args=True)
     rules_handler = CommandHandler('rules', rules)
     rules_handler_hashtag = RegexHandler(r'.*#rules.*', rules)
     docs_handler = CommandHandler('docs', docs, allow_edited=True)
-    wiki_handler = CommandHandler('wiki', wiki, allow_edited=True)
     sandwich_handler = RegexHandler(r'(?i)[\s\S]*?((sudo )?make me a sandwich)[\s\S]*?', sandwich,
                                     pass_groups=True)
     off_on_topic_handler = RegexHandler(r'(?i)[\s\S]*?\b(?<!["\\])(off|on)[- _]?topic\b',
@@ -312,23 +285,20 @@ def main():
     # This should probably be in another dispatcher group
     # but I kept getting SystemErrors...
     github_handler = MessageHandler(Filters.all, github, allow_edited=True, pass_chat_data=True)
-    forward_faq_handler = RegexHandler(r'(?i).*#faq.*', forward_faq)
 
     taghints.register(dispatcher)
-    dispatcher.add_handler(forward_faq_handler)
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(rules_handler)
     dispatcher.add_handler(rules_handler_hashtag)
     dispatcher.add_handler(docs_handler)
-    dispatcher.add_handler(wiki_handler)
     dispatcher.add_handler(sandwich_handler)
     dispatcher.add_handler(off_on_topic_handler)
     dispatcher.add_handler(github_handler)
 
-    inlinequeries.register(dispatcher)
+    inlinequeries.register(dispatcher, all_list)
     dispatcher.add_error_handler(error)
 
-    updater.start_polling()
+    updater.start_polling(clean=True)
     logger.info('Listening...')
     updater.idle()
 

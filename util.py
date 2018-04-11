@@ -7,7 +7,7 @@ from telegram import ParseMode
 
 ARROW_CHARACTER = '➜'
 GITHUB_URL = "https://github.com/"
-DEFAULT_REPO = 'python-telegram-bot/python-telegram-bot'
+DEFAULT_REPO = 'LonamiWebs/Telethon'
 
 
 def get_reply_id(update):
@@ -45,7 +45,6 @@ def get_web_page_title(url):
 def get_text_not_in_entities(html):
     soup = BeautifulSoup(html, 'html.parser')
     return ' '.join(soup.find_all(text=True, recursive=False))
-
 
 
 def build_menu(buttons,

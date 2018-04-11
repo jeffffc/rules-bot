@@ -1,12 +1,11 @@
 from uuid import uuid4
 
 from telegram import InlineQueryResultArticle, InputTextMessageContent, ParseMode
-from telegram.ext import InlineQueryHandler
-from telegram.utils.helpers import escape_markdown
+from telegram.ext import InlineQueryHandler, run_async
 
 from components import taghints
 from rules_bot import fuzzy_replacements_markdown
-from search import WIKI_URL, search
+from search import search, DOCS_URL
 
 
 def article(title='', description='', message_text=''):
@@ -34,7 +33,8 @@ def hint_article(msg, reply_markup, key):
     )
 
 
-def inline_query(bot, update, threshold=20):
+@run_async
+def inline_query(bot, update, all_list, threshold=20):
     query = update.inline_query.query
     results_list = list()
 
@@ -44,46 +44,39 @@ def inline_query(bot, update, threshold=20):
         if msg is not None:
             results_list.append(hint_article(msg, reply_markup, key))
 
-        modified, replaced = fuzzy_replacements_markdown(query, official_api_links=True)
-        if modified:
-            results_list.append(article(
-                title="Replace links and show official Bot API documentation",
-                description=', '.join(modified),
-                message_text=replaced))
-
-        modified, replaced = fuzzy_replacements_markdown(query, official_api_links=False)
+        modified, replaced = fuzzy_replacements_markdown(query)
         if modified:
             results_list.append(article(
                 title="Replace links",
                 description=', '.join(modified),
                 message_text=replaced))
 
-        wiki_pages = search.wiki(query, amount=4, threshold=threshold)
-        doc = search.docs(query, threshold=threshold)
+        docs = search.docs(query, threshold=threshold)
 
-        if doc:
-            text = f'*{doc.short_name}*\n' \
-                   f'_python-telegram-bot_ documentation for this {doc.type}:\n' \
-                   f'[{doc.full_name}]({doc.url})'
-            if doc.tg_name:
-                text += f'\n\nThe official documentation has more info about [{doc.tg_name}]({doc.tg_url}).'
+        if docs:
+            for doc in docs:
+                text = f'*{doc.short_name}*\n' \
+                       f'_Telethon_ documentation for this {doc.type}:\n' \
+                       f'[{doc.full_name}]({doc.url})'
 
-            results_list.append(article(
-                title=f'{doc.full_name}',
-                description="python-telegram-bot documentation",
-                message_text=text,
-            ))
-
-
-        if wiki_pages:
-            # Limit number of search results to maximum
-            wiki_pages = wiki_pages[:49 - len(results_list)]
-            for wiki_page in wiki_pages:
                 results_list.append(article(
-                    title=f'{wiki_page[0]}',
-                    description="Github wiki for python-telegram-bot",
-                    message_text=f'Wiki of _python-telegram-bot_\n'
-                                 f'[{wiki_page[0]}]({wiki_page[1]})'
+                    title=f'{doc.full_name}',
+                    description="Telethon documentation",
+                    message_text=text,
+                ))
+
+        api_docs = search.api_docs(query, all_list)
+
+        if api_docs:
+            for doc in api_docs:
+                text = f'*{doc.short_name}*\n' \
+                       f'_Telethon_ API Docs for this {doc.type}:\n' \
+                       f'[{doc.full_name}]({doc.url})'
+
+                results_list.append(article(
+                    title=f'{doc.full_name}',
+                    description="Telethon API Details",
+                    message_text=text,
                 ))
 
         # "No results" entry
@@ -91,27 +84,20 @@ def inline_query(bot, update, threshold=20):
             results_list.append(article(
                 title='❌ No results.',
                 description='',
-                message_text=f'[GitHub wiki]({WIKI_URL}) of _python-telegram-bot_',
+                message_text=f'Click [here]({DOCS_URL}) to see the full documentation of _Telethon_',
             ))
 
     else:  # no query input
-        # add all wiki pages
-        # TODO: Use slicing to limit items (somehow)
-        count = 0
-        for name, link in search._wiki.items():
-            if count == 50:
-                break
-            results_list.append(article(
-                title=name,
-                description='Wiki of python-telegram-bot',
-                message_text=f'Wiki of _python-telegram-bot_\n'
-                             f'[{escape_markdown(name)}]({link})',
-            ))
-            count += 1
+        results_list = list()
+        results_list.append(article(
+            title='❌ No results.',
+            description='',
+            message_text=f'Click [here]({DOCS_URL}) to see the full documentation of _Telethon_',
+        ))
 
     bot.answerInlineQuery(update.inline_query.id, results=results_list, switch_pm_text='Help',
                           switch_pm_parameter='inline-help')
 
 
-def register(dispatcher):
-    dispatcher.add_handler(InlineQueryHandler(inline_query))
+def register(dispatcher, all_list):
+    dispatcher.add_handler(InlineQueryHandler(lambda bot, update: inline_query(bot, update, all_list)))

@@ -1,21 +1,17 @@
-from collections import OrderedDict, namedtuple
+from collections import namedtuple
 from urllib.parse import urljoin
 from urllib.request import urlopen
 
-from bs4 import BeautifulSoup
 from fuzzywuzzy import fuzz
 from sphinx.util.inventory import InventoryFile
 
-from util import ARROW_CHARACTER, DEFAULT_REPO, GITHUB_URL
+from util import DEFAULT_REPO, GITHUB_URL
 
-DOCS_URL = "https://python-telegram-bot.readthedocs.io/en/latest/"
-OFFICIAL_URL = "https://core.telegram.org/bots/api"
+DOCS_URL = "https://telethon.readthedocs.io/en/latest/"
+API_URL = "https://lonamiwebs.github.io/Telethon/"
 PROJECT_URL = urljoin(GITHUB_URL, DEFAULT_REPO + '/')
-WIKI_URL = urljoin(PROJECT_URL, "wiki/")
-WIKI_CODE_SNIPPETS_URL = urljoin(WIKI_URL, "Code-snippets")
-EXAMPLES_URL = urljoin(PROJECT_URL, 'tree/master/examples/')
 
-Doc = namedtuple('Doc', 'short_name, full_name, type, url, tg_name, tg_url')
+Doc = namedtuple('Doc', 'short_name, full_name, type, url')
 
 
 class BestHandler:
@@ -34,54 +30,15 @@ class BestHandler:
 class Search:
     def __init__(self):
         self._docs = {}
-        self._official = {}
-        self._wiki = OrderedDict()  # also examples
         self.parse_docs()
-        self.parse_official()
-        # Order matters since we use an ordered dict
-        self.parse_wiki()
-        self.parse_examples()
-        self.parse_wiki_code_snippets()
 
     def parse_docs(self):
         docs_data = urlopen(urljoin(DOCS_URL, "objects.inv"))
         self._docs = InventoryFile.load(docs_data, DOCS_URL, urljoin)
 
-    def parse_official(self):
-        official_soup = BeautifulSoup(urlopen(OFFICIAL_URL), "html.parser")
-        for anchor in official_soup.select('a.anchor'):
-            if '-' not in anchor['href']:
-                self._official[anchor['href'][1:]] = anchor.next_sibling
-
-    def parse_wiki(self):
-        wiki_soup = BeautifulSoup(urlopen(WIKI_URL), "html.parser")
-
-        # Parse main pages from custom sidebar
-        for ol in wiki_soup.select("div.wiki-custom-sidebar > ol"):
-            category = ol.find_previous_sibling('h2').text.strip()
-            for li in ol.select('li'):
-                if li.a['href'] != '#':
-                    name = f'{category} {ARROW_CHARACTER} {li.a.text.strip()}'
-                    self._wiki[name] = urljoin(WIKI_URL, li.a['href'])
-
-    def parse_wiki_code_snippets(self):
-        code_snippet_soup = BeautifulSoup(urlopen(WIKI_CODE_SNIPPETS_URL), 'html.parser')
-        for h4 in code_snippet_soup.select('div.wiki-body h4'):
-            name = f'Code snippets {ARROW_CHARACTER} {h4.text.strip()}'
-            self._wiki[name] = urljoin(WIKI_CODE_SNIPPETS_URL, h4.a['href'])
-
-    def parse_examples(self):
-        self._wiki['Examples'] = EXAMPLES_URL
-
-        example_soup = BeautifulSoup(urlopen(EXAMPLES_URL), 'html.parser')
-
-        for a in example_soup.select('.files td.content a'):
-            if a.text not in ['LICENSE.txt', 'README.md']:
-                name = f'Examples {ARROW_CHARACTER} {a.text.strip()}'
-                self._wiki[name] = urljoin(EXAMPLES_URL, a['href'])
-
-    def docs(self, query, threshold=80):
+    def docs(self, query, amount=3, threshold=80):
         query = list(reversed(query.split('.')))
+        besth = BestHandler()
         best = (0, None)
 
         for typ, items in self._docs.items():
@@ -105,17 +62,6 @@ class Search:
                     score *= 0.85
 
                 if score > best[0]:
-                    tg_url, tg_test, tg_name = '', '', ''
-
-                    if typ in ['py:class', 'py:method']:
-                        tg_test = name_bits[-1].replace('_', '').lower()
-                    elif typ == 'py:attribute':
-                        tg_test = name_bits[-2].replace('_', '').lower()
-
-                    if tg_test in self._official.keys():
-                        tg_name = self._official[tg_test]
-                        tg_url = urljoin(OFFICIAL_URL, '#' + tg_name.lower())
-
                     short_name = name_bits[1:]
 
                     try:
@@ -123,20 +69,53 @@ class Search:
                             short_name = name_bits[2:]
                     except IndexError:
                         pass
-                    best = (score, Doc('.'.join(short_name), name,
-                                       typ[3:], item[2], tg_name, tg_url))
-        if best[0] > threshold:
-            return best[1]
+                    best = (score, Doc('.'.join(short_name), name, typ[3:], item[2]))
+                    besth.add(score, Doc('.'.join(short_name), name, typ[3:], item[2]))
 
-    def wiki(self, query, amount=5, threshold=50):
-        best = BestHandler()
-        best.add(0, ('HOME', WIKI_URL))
-        if query != '':
-            for name, link in self._wiki.items():
-                score = fuzz.ratio(query.lower(), name.split(ARROW_CHARACTER)[-1].strip().lower())
-                best.add(score, (name, link))
+        return besth.to_list(amount, threshold)
 
-        return best.to_list(amount, threshold)
+    def api_docs(self, query, all_list):
+        result_list = []
+
+        for key, value in all_list.items():
+            res = self.get_search_array(value[0], value[1], query)
+            for i, des in enumerate(res[0]):
+                result_list.append(Doc(des, des, key, f"{API_URL}{res[1][i]}"))
+
+        return result_list
+
+    def get_search_array(self, origins, originus, query):
+        destination = []
+        destinationu = []
+
+        for i, origin in enumerate(origins):
+            if self.find(origin.lower(), query):
+                destination.append(origin)
+                destinationu.append(originus[i])
+
+        return [destination, destinationu]
+
+    @staticmethod
+    def find(haystack, needle):
+        if len(needle) == 0:
+            return True
+        hi = 0
+        ni = 0
+        while True:
+            while ord(needle[ni]) < ord('a') or ord(needle[ni]) > ord('z'):
+                ni += 1
+                if ni == len(needle):
+                    return True
+            while haystack[hi] != needle[ni]:
+                hi += 1
+                if hi == len(haystack):
+                    return False
+            hi += 1
+            ni += 1
+            if ni == len(needle):
+                return True
+            if hi == len(haystack):
+                return False
 
 
 search = Search()
