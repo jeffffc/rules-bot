@@ -79,7 +79,7 @@ class Search:
 
         for key, value in all_list.items():
             res = self.get_search_array(value[0], value[1], query)
-            for i, des in enumerate(res[0]):
+            for i, des in enumerate(res[:10][0]):
                 result_list.append(Doc(des, des, key, f"{API_URL}{res[1][i]}"))
 
         return result_list
